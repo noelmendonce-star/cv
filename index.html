@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CV Tailor — open source CV tailoring tool</title>
+<meta name="description" content="Tailor your CV to a specific job description using Claude. Runs entirely in your browser. Bring your own API key." />
+<style>
+  :root {
+    --navy: #1F3A5F;
+    --slate: #2C3E50;
+    --muted: #5D6D7E;
+    --bg: #FAFAF7;
+    --card: #FFFFFF;
+    --border: #E5E7EB;
+    --border-strong: #D1D5DB;
+    --text: #111827;
+    --text-muted: #6B7280;
+    --info-bg: #EFF6FF;
+    --info-border: #2563EB;
+    --info-text: #1E3A8A;
+    --warn-bg: #FFFBEB;
+    --warn-text: #92400E;
+    --success: #047857;
+    --danger: #B91C1C;
+    --radius: 8px;
+    --radius-lg: 12px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 32px 20px 80px; }
+
+  header { margin-bottom: 24px; }
+  h1 { font-size: 26px; font-weight: 600; margin: 0 0 6px; color: var(--navy); }
+  header p { margin: 0; color: var(--text-muted); font-size: 14px; max-width: 700px; }
+  header a { color: var(--navy); }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  details { font-size: 14px; color: var(--text-muted); }
+  details summary { cursor: pointer; padding: 6px 0; font-weight: 500; color: var(--text); }
+  details summary:hover { color: var(--navy); }
+  details > div { padding: 8px 0 4px; }
+  details ol { margin: 6px 0 4px 1.2rem; padding: 0; }
+  details ol li { margin-bottom: 6px; }
+  code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; background: #F3F4F6; padding: 1px 6px; border-radius: 4px; }
+
+  label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
+  input[type="text"], input[type="password"] {
+    width: 100%;
+    padding: 9px 12px;
+    font-size: 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    background: white;
+    font-family: inherit;
+  }
+  input:focus, textarea:focus { outline: 2px solid var(--info-border); outline-offset: -1px; border-color: var(--info-border); }
+  textarea {
+    width: 100%;
+    min-height: 240px;
+    padding: 10px 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    background: white;
+    resize: vertical;
+  }
+  button {
+    cursor: pointer;
+    background: white;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    padding: 8px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--text);
+    transition: background-color 120ms, border-color 120ms;
+  }
+  button:hover { background: #F9FAFB; border-color: #9CA3AF; }
+  button:active { background: #F3F4F6; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.primary { background: var(--navy); color: white; border-color: var(--navy); }
+  button.primary:hover { background: #16304F; }
+  button.tiny { font-size: 12px; padding: 4px 10px; }
+
+  .key-row { display: flex; gap: 8px; align-items: stretch; }
+  .key-row input { flex: 1; }
+  .field-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .field-row label { margin: 0; }
+  input[type="file"] { display: none; }
+
+  .grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+  @media (max-width: 760px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .note { font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
+
+  .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+  .status { font-size: 13px; color: var(--text-muted); }
+  .status.error { color: var(--danger); }
+  .status.success { color: var(--success); }
+
+  .results-card h2 { font-size: 18px; font-weight: 600; margin: 0 0 4px; color: var(--text); }
+  .results-card p.lede { color: var(--text-muted); font-size: 13px; margin: 0 0 16px; }
+
+  .compare { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  @media (max-width: 760px) { .compare { grid-template-columns: 1fr; } }
+  .pane {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    min-height: 60px;
+  }
+  .pane.tailored { border: 2px solid var(--info-border); }
+  .pane h4 { font-size: 12px; font-weight: 500; color: var(--text-muted); margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .pane p { font-size: 14px; line-height: 1.6; margin: 0; }
+
+  .subhead { font-size: 13px; font-weight: 600; color: var(--text); margin: 22px 0 8px; }
+  .role-label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; font-weight: 500; }
+
+  .changes-block {
+    background: #F9FAFB;
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .changes-block ul { margin: 0; padding-left: 20px; }
+  .changes-block li { margin-bottom: 4px; }
+
+  .warn-box {
+    background: var(--warn-bg);
+    color: var(--warn-text);
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    font-size: 13.5px;
+    line-height: 1.5;
+    margin-bottom: 16px;
+  }
+  .warn-box strong { font-weight: 600; }
+
+  .hidden { display: none; }
+  footer { margin-top: 40px; font-size: 12px; color: var(--text-muted); text-align: center; }
+  footer a { color: var(--text-muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>CV Tailor</h1>
+  <p>Tailor your CV to a specific job description. Reword bullets to match the job's language, get suggestions on which experience to emphasise, and see exactly what changed before you download. Runs entirely in your browser — your CV never leaves your device for parsing, and your API key stays in this tab.</p>
+</header>
+
+<div class="card">
+  <details>
+    <summary>How to get a Claude API key (one-time setup, ~5 min)</summary>
+    <div>
+      <ol>
+        <li>Go to <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> and sign up.</li>
+        <li>Add a small amount of credit. About $5 covers ~150 CVs.</li>
+        <li>Open the "API Keys" page and create a new key. It starts with <code>sk-ant-</code>.</li>
+        <li>Paste it below. Your key stays in this browser tab only — it's sent directly to Anthropic, never to anyone else.</li>
+      </ol>
+    </div>
+  </details>
+</div>
+
+<div class="card">
+  <label for="api-key">Claude API key</label>
+  <div class="key-row">
+    <input id="api-key" type="password" placeholder="sk-ant-..." autocomplete="off" />
+    <button id="save-key" type="button" class="primary">Save in this tab</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="grid-2">
+    <div>
+      <div class="field-row">
+        <label for="cv-input">Your current CV</label>
+        <button class="tiny" id="cv-upload-btn" type="button">Upload PDF / .docx</button>
+        <input type="file" id="cv-file" accept=".pdf,.docx" />
+      </div>
+      <textarea id="cv-input" placeholder="Upload a file above or paste your CV here as plain text. Include name, contact, summary, work history, education, and skills."></textarea>
+      <p class="note" id="cv-note"></p>
+    </div>
+    <div>
+      <div class="field-row">
+        <label for="jd-input">Job description</label>
+        <button class="tiny" id="jd-upload-btn" type="button">Upload PDF / .docx</button>
+        <input type="file" id="jd-file" accept=".pdf,.docx" />
+      </div>
+      <textarea id="jd-input" placeholder="Upload a file above or paste the full job description here, including responsibilities and requirements."></textarea>
+      <p class="note" id="jd-note"></p>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button id="run-btn" type="button" class="primary">Tailor my CV</button>
+    <button id="sample-btn" type="button">Load sample data</button>
+    <span id="status" class="status"></span>
+  </div>
+</div>
+
+<div id="results" class="card results-card hidden">
+  <h2>Tailored result</h2>
+  <p class="lede">Review the side-by-side. The tailored version on the right is what gets exported. If anything looks invented or wrong, regenerate or edit before downloading.</p>
+
+  <div id="warn-box" class="warn-box hidden"></div>
+
+  <h3 class="subhead">Professional summary</h3>
+  <div class="compare">
+    <div class="pane"><h4>Original</h4><p id="orig-summary"></p></div>
+    <div class="pane tailored"><h4>Tailored</h4><p id="new-summary"></p></div>
+  </div>
+
+  <h3 class="subhead">Reworded bullets</h3>
+  <div id="bullets-area"></div>
+
+  <h3 class="subhead">Emphasis suggestions</h3>
+  <div id="emphasis-area" class="changes-block"></div>
+
+  <div class="actions" style="margin-top: 24px;">
+    <button id="download-btn" type="button" class="primary">Download .docx</button>
+    <button id="regen-btn" type="button">Regenerate</button>
+  </div>
+</div>
+
+<footer>
+  <p>CV Tailor — open source, MIT licensed. <a href="https://github.com/" target="_blank" rel="noopener">View source on GitHub</a> · Your CV and key never leave your browser.</p>
+</footer>
+
+</div>
+
+<!-- Libraries: PDF reader, .docx reader, .docx writer -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/9.0.2/docx.umd.min.js"></script>
+
+<script>
+(function() {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+  const setStatus = (msg, cls = "") => {
+    const s = $("status");
+    s.textContent = msg;
+    s.className = "status " + cls;
+  };
+
+  // -------- PDF.js worker setup --------
+  if (window.pdfjsLib) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+
+  // -------- API key (memory only, never stored) --------
+  let apiKey = "";
+  $("save-key").addEventListener("click", () => {
+    const v = $("api-key").value.trim();
+    if (!v.startsWith("sk-ant-")) {
+      setStatus("Key should start with sk-ant-", "error");
+      return;
+    }
+    apiKey = v;
+    $("api-key").value = "•••••••• saved in this tab";
+    $("api-key").disabled = true;
+    setStatus("Key saved (this browser tab only).", "success");
+  });
+
+  // -------- File extraction (PDF + .docx) --------
+  async function extractPdf(file) {
+    const buf = await file.arrayBuffer();
+    const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+    let text = "";
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      // Group items by y-coordinate so we reconstruct lines, then sort by x within each line
+      const lines = {};
+      content.items.forEach(item => {
+        const y = Math.round(item.transform[5]);
+        if (!lines[y]) lines[y] = [];
+        lines[y].push({ x: item.transform[4], str: item.str });
+      });
+      const ys = Object.keys(lines).map(Number).sort((a, b) => b - a);
+      ys.forEach(y => {
+        const line = lines[y].sort((a, b) => a.x - b.x).map(i => i.str).join(" ");
+        text += line + "\n";
+      });
+      text += "\n";
+    }
+    return text.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  async function extractDocx(file) {
+    const buf = await file.arrayBuffer();
+    const result = await window.mammoth.extractRawText({ arrayBuffer: buf });
+    return (result.value || "").trim();
+  }
+
+  async function handleFile(file, targetTextarea, noteEl) {
+    const name = file.name.toLowerCase();
+    if (name.endsWith(".doc") && !name.endsWith(".docx")) {
+      setStatus("Old .doc format isn't supported. Open it in Word and use Save As → .docx.", "error");
+      return;
+    }
+    setStatus("Reading " + file.name + "...");
+    try {
+      let text;
+      if (name.endsWith(".pdf")) {
+        if (!window.pdfjsLib) throw new Error("PDF reader still loading — try again in a moment.");
+        text = await extractPdf(file);
+      } else if (name.endsWith(".docx")) {
+        if (!window.mammoth) throw new Error("Docx reader still loading — try again in a moment.");
+        text = await extractDocx(file);
+      } else {
+        throw new Error("Unsupported file type. Use .pdf or .docx.");
+      }
+      if (!text || text.length < 30) {
+        throw new Error("Could not extract text. The file may be a scanned image — try a text-based version, or paste the content manually.");
+      }
+      targetTextarea.value = text;
+      noteEl.textContent =
+        "Extracted from " + file.name +
+        " — review the text above and fix anything that looks wrong before tailoring. Formatting doesn't matter, only the words.";
+      setStatus("File loaded. Review the extracted text below.", "success");
+    } catch (e) {
+      setStatus("Couldn't read file: " + e.message, "error");
+    }
+  }
+
+  $("cv-upload-btn").addEventListener("click", () => $("cv-file").click());
+  $("jd-upload-btn").addEventListener("click", () => $("jd-file").click());
+  $("cv-file").addEventListener("change", e => {
+    if (e.target.files[0]) handleFile(e.target.files[0], $("cv-input"), $("cv-note"));
+  });
+  $("jd-file").addEventListener("change", e => {
+    if (e.target.files[0]) handleFile(e.target.files[0], $("jd-input"), $("jd-note"));
+  });
+
+  // -------- Sample data --------
+  $("sample-btn").addEventListener("click", () => {
+    $("cv-input").value =
+      "JANE EXAMPLE\nPerth, WA  |  0400 000 000  |  jane@example.com\n\n" +
+      "SUMMARY\nReliable support professional with a decade of customer service and driving experience, currently completing Cert IV in Community Services.\n\n" +
+      "EXPERIENCE\nRideshare Driver — Uber, DiDi — Sep 2019 to current\n" +
+      "- Drove passengers around the city\n- Helped passengers with luggage\n- Maintained good ratings\n\n" +
+      "Console Operator — Local Service Station — Sep 2013 to current\n" +
+      "- Customer service\n- Cash handling\n- Made coffee and food\n\n" +
+      "EDUCATION\nCert IV in Community Services (in progress) — TAFE";
+    $("jd-input").value =
+      "Community Support Worker\n\n" +
+      "Responsibilities: providing personal care, meal prep and domestic duties, social support, shopping assistance, transport, and pet care.\n\n" +
+      "About you: caring nature, comfortable driving and transporting clients, working independently. Aged care or community care experience preferred.\n\n" +
+      "Requirements: police clearance, driver's licence, reliable vehicle with comprehensive insurance.";
+    $("cv-note").textContent = "";
+    $("jd-note").textContent = "";
+    setStatus("Sample data loaded.", "success");
+  });
+
+  // -------- The prompt that does the actual tailoring --------
+  function buildPrompt(cvText, jdText) {
+    return `You are a CV tailoring assistant. Your job is to help the user tailor their CV to a specific job WITHOUT inventing any new experience, qualifications, dates, or skills.
+
+CRITICAL RULES (do not break these under any circumstance):
+1. NEVER invent experience, qualifications, employers, dates, or achievements not present in the original CV.
+2. NEVER add a skill, certification, or credential the user did not list.
+3. You may REWORD existing content using language from the job description, REORDER bullets to put the most relevant first, and REWRITE the professional summary using only facts from the original CV.
+4. If the original CV doesn't have something the job asks for, do NOT pretend it does. Note it in the "missingRequirements" field.
+5. Keep the user's voice — do not make it overly corporate or saccharine.
+
+JOB DESCRIPTION:
+"""
+${jdText}
+"""
+
+ORIGINAL CV:
+"""
+${cvText}
+"""
+
+Return ONLY a JSON object (no markdown fences, no explanation) with this exact shape:
+{
+  "originalSummary": "the original summary text from the CV, verbatim",
+  "tailoredSummary": "a rewritten summary using only facts from the original CV, mirroring language from the job description where genuine",
+  "rewordedBullets": [
+    {
+      "role": "job title — employer",
+      "original": "the original bullet, verbatim",
+      "tailored": "the reworded bullet, using job-description language only where it accurately describes what the user actually did"
+    }
+  ],
+  "emphasisSuggestions": [
+    "Plain-English suggestion of which experience to lead with and why."
+  ],
+  "missingRequirements": [
+    "Plain-English list of any job requirements the original CV does not clearly demonstrate. If none, return an empty array."
+  ]
+}
+
+Only include bullets you actually changed. Aim for 4-8 bullets across the most relevant roles. Output JSON only.`;
+  }
+
+  async function callClaude(cvText, jdText) {
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 3000,
+        messages: [{ role: "user", content: buildPrompt(cvText, jdText) }],
+      }),
+    });
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error("API error " + resp.status + ": " + txt.slice(0, 200));
+    }
+    const data = await resp.json();
+    const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+    const cleaned = text.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
+    return JSON.parse(cleaned);
+  }
+
+  // -------- Rendering --------
+  let lastResult = null;
+  let lastInputs = null;
+
+  function escapeHtml(s) {
+    return String(s || "").replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"
+    })[c]);
+  }
+
+  function renderResult(r) {
+    lastResult = r;
+    $("orig-summary").textContent = r.originalSummary || "(none)";
+    $("new-summary").textContent = r.tailoredSummary || "(none)";
+
+    const bArea = $("bullets-area");
+    bArea.innerHTML = "";
+    (r.rewordedBullets || []).forEach(b => {
+      const wrap = document.createElement("div");
+      wrap.style.marginBottom = "16px";
+      wrap.innerHTML =
+        '<div class="role-label">' + escapeHtml(b.role) + '</div>' +
+        '<div class="compare">' +
+          '<div class="pane"><h4>Original</h4><p>' + escapeHtml(b.original) + '</p></div>' +
+          '<div class="pane tailored"><h4>Tailored</h4><p>' + escapeHtml(b.tailored) + '</p></div>' +
+        '</div>';
+      bArea.appendChild(wrap);
+    });
+
+    const eArea = $("emphasis-area");
+    if (r.emphasisSuggestions && r.emphasisSuggestions.length) {
+      eArea.innerHTML = "<ul>" +
+        r.emphasisSuggestions.map(s => "<li>" + escapeHtml(s) + "</li>").join("") +
+        "</ul>";
+    } else {
+      eArea.innerHTML = "<em style='color: var(--text-muted);'>No specific emphasis changes suggested.</em>";
+    }
+
+    const w = $("warn-box");
+    if (r.missingRequirements && r.missingRequirements.length) {
+      w.innerHTML =
+        "<strong>Things the job asks for that aren't clearly in your CV:</strong>" +
+        "<ul style='margin: 6px 0 0 20px; padding: 0;'>" +
+        r.missingRequirements.map(s => "<li>" + escapeHtml(s) + "</li>").join("") +
+        "</ul>";
+      w.classList.remove("hidden");
+    } else {
+      w.classList.add("hidden");
+    }
+
+    $("results").classList.remove("hidden");
+    $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // -------- Run --------
+  async function runTailoring() {
+    if (!apiKey) {
+      setStatus("Save your API key first.", "error");
+      return;
+    }
+    const cvText = $("cv-input").value.trim();
+    const jdText = $("jd-input").value.trim();
+    if (!cvText || !jdText) {
+      setStatus("Provide both your CV and the job description.", "error");
+      return;
+    }
+    lastInputs = { cvText, jdText };
+    setStatus("Calling Claude... this takes 10-20 seconds.");
+    $("run-btn").disabled = true;
+    try {
+      const result = await callClaude(cvText, jdText);
+      renderResult(result);
+      setStatus("Done. Review the side-by-side, then download.", "success");
+    } catch (e) {
+      setStatus("Error: " + e.message, "error");
+    } finally {
+      $("run-btn").disabled = false;
+    }
+  }
+  $("run-btn").addEventListener("click", runTailoring);
+  $("regen-btn").addEventListener("click", runTailoring);
+
+  // -------- Build .docx and download --------
+  $("download-btn").addEventListener("click", () => {
+    if (!lastResult) { setStatus("Run the tailoring first.", "error"); return; }
+    if (!window.docx) { setStatus("Docx library not loaded yet, try again in a moment.", "error"); return; }
+
+    const D = window.docx;
+    const NAVY = "1F3A5F";
+    const MUTED = "5D6D7E";
+
+    const heading = (text) => new D.Paragraph({
+      spacing: { before: 240, after: 80 },
+      border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: "BDC6CF", space: 2 } },
+      children: [new D.TextRun({ text: text.toUpperCase(), bold: true, size: 23, color: NAVY, font: "Calibri" })],
+    });
+    const body = (text) => new D.Paragraph({
+      spacing: { after: 100, line: 290 },
+      alignment: D.AlignmentType.JUSTIFIED,
+      children: [new D.TextRun({ text, size: 20, font: "Calibri" })],
+    });
+    const bullet = (text) => new D.Paragraph({
+      numbering: { reference: "bullets", level: 0 },
+      spacing: { after: 40, line: 290 },
+      children: [new D.TextRun({ text, size: 20, font: "Calibri" })],
+    });
+
+    const cvHeader = lastInputs.cvText.split("\n").slice(0, 3);
+    const headerName = (cvHeader[0] || "Tailored CV").trim();
+    const headerContact = (cvHeader[1] || "").trim();
+
+    const children = [
+      new D.Paragraph({ spacing: { after: 20 }, children: [new D.TextRun({ text: headerName, bold: true, size: 40, color: NAVY, font: "Calibri" })] }),
+      new D.Paragraph({ spacing: { after: 60 }, children: [new D.TextRun({ text: headerContact, size: 19, color: MUTED, font: "Calibri" })] }),
+      new D.Paragraph({ spacing: { before: 40, after: 240 }, border: { bottom: { style: D.BorderStyle.SINGLE, size: 14, color: NAVY, space: 2 } }, children: [new D.TextRun({ text: "" })] }),
+      heading("Professional Summary"),
+      body(lastResult.tailoredSummary || ""),
+      heading("Tailored Bullets"),
+    ];
+    (lastResult.rewordedBullets || []).forEach(b => {
+      children.push(new D.Paragraph({
+        spacing: { before: 100, after: 0 },
+        children: [new D.TextRun({ text: b.role, bold: true, size: 21, color: "2C3E50", font: "Calibri" })],
+      }));
+      children.push(bullet(b.tailored));
+    });
+    if (lastResult.emphasisSuggestions && lastResult.emphasisSuggestions.length) {
+      children.push(heading("Emphasis Suggestions (from AI)"));
+      lastResult.emphasisSuggestions.forEach(s => children.push(bullet(s)));
+    }
+    children.push(heading("Reference"));
+    children.push(body("This document was generated by tailoring your original CV to a specific job description. Review every line for accuracy before sending."));
+
+    const doc = new D.Document({
+      creator: "CV Tailor",
+      title: "Tailored CV",
+      styles: { default: { document: { run: { font: "Calibri", size: 22 } } } },
+      numbering: { config: [{ reference: "bullets", levels: [{ level: 0, format: D.LevelFormat.BULLET, text: "•", alignment: D.AlignmentType.LEFT, style: { paragraph: { indent: { left: 360, hanging: 240 } } } }] }] },
+      sections: [{
+        properties: { page: { size: { width: 11906, height: 16838, orientation: D.PageOrientation.PORTRAIT }, margin: { top: 850, bottom: 850, left: 1020, right: 1020 } } },
+        children,
+      }],
+    });
+
+    D.Packer.toBlob(doc).then(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Tailored_CV.docx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setStatus("Downloaded Tailored_CV.docx", "success");
+    });
+  });
+
+})();
+</script>
+</body>
+</html>
